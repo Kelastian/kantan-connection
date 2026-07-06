@@ -5,6 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Necesario para DxgiScreenCapturer: leer una textura mapeada por DXGI requiere
+         recorrer sus filas con un puntero crudo (el stride de la GPU no coincide
+         necesariamente con el ancho lógico). No hay una API de Marshal.Copy equivalente
+         para este caso, a diferencia del resto del proyecto donde se evitó unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

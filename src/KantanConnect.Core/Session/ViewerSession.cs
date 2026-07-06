@@ -20,6 +20,12 @@ public sealed class ViewerSession : IAsyncDisposable
     private readonly string _viewerId;
     private readonly string _viewerDisplayName;
 
+    // El bucle de latidos (RunPingLoopAsync) ya escribe al stream de forma periódica;
+    // cuando la Fase 6 agregue el envío de InputEvent, habrá un segundo escritor
+    // potencialmente concurrente. Se agrega el lock desde ya (mismo patrón que
+    // HostSession) para no tener que revisar esta clase de nuevo en esa fase.
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
     private TcpClient? _client;
     private NetworkStream? _stream;
     private CancellationTokenSource? _sessionCts;
@@ -34,6 +40,9 @@ public sealed class ViewerSession : IAsyncDisposable
 
     /// <summary>Se dispara al recibir la resolución de pantalla del Host.</summary>
     public event EventHandler<ScreenInfo>? ScreenInfoReceived;
+
+    /// <summary>Se dispara cada vez que llega un fotograma nuevo del Host.</summary>
+    public event EventHandler<CapturedFrame>? FrameReceived;
 
     /// <summary>Se dispara cuando un intento de PIN fue rechazado (con intentos aún disponibles).</summary>
     public event EventHandler<PinRejectedEventArgs>? PinRejected;
@@ -78,8 +87,7 @@ public sealed class ViewerSession : IAsyncDisposable
                 ViewerDisplayName = _viewerDisplayName,
                 ProtocolVersion = ProtocolVersion,
             };
-            await MessageFramer.WriteAsync(
-                _stream, MessageType.Hello, JsonSerializer.SerializeToUtf8Bytes(hello), cancellationToken)
+            await WriteFramedAsync(MessageType.Hello, JsonSerializer.SerializeToUtf8Bytes(hello), cancellationToken)
                 .ConfigureAwait(false);
 
             var screenInfo = await ReadExpectedAsync<ScreenInfo>(MessageType.ScreenInfo, cancellationToken)
@@ -116,8 +124,7 @@ public sealed class ViewerSession : IAsyncDisposable
             var pin = await RequestPinFromUserAsync(pinRequest.PinLength).ConfigureAwait(false);
 
             var attempt = new PinAttemptMessage { Pin = pin };
-            await MessageFramer.WriteAsync(
-                _stream!, MessageType.PinAttempt, JsonSerializer.SerializeToUtf8Bytes(attempt), cancellationToken)
+            await WriteFramedAsync(MessageType.PinAttempt, JsonSerializer.SerializeToUtf8Bytes(attempt), cancellationToken)
                 .ConfigureAwait(false);
 
             var result = await ReadExpectedAsync<PinResultMessage>(MessageType.PinResult, cancellationToken)
@@ -139,8 +146,8 @@ public sealed class ViewerSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Tras autenticar, la sesión queda "viva" mandando latidos periódicos. La recepción
-    /// de video (Fase 5) y el envío de entrada (Fase 6) se añadirán sobre este mismo bucle.
+    /// Tras autenticar, la sesión queda "viva" mandando latidos periódicos y recibiendo
+    /// video (Fase 5). El envío de entrada (Fase 6) se añadirá sobre este mismo bucle.
     /// </summary>
     private async Task RunPostAuthLoopAsync(CancellationToken cancellationToken)
     {
@@ -158,15 +165,22 @@ public sealed class ViewerSession : IAsyncDisposable
                     return;
                 }
 
-                if (message.Value.Type == MessageType.Bye)
+                switch (message.Value.Type)
                 {
-                    RaiseSessionEnded(SessionEndReason.RemoteClosed);
-                    return;
-                }
+                    case MessageType.Bye:
+                        RaiseSessionEnded(SessionEndReason.RemoteClosed);
+                        return;
 
-                // El "Pong" de respuesta a nuestros latidos no necesita acción propia:
-                // el solo hecho de poder leerlo confirma que la conexión sigue viva.
-                // Los mensajes de video/entrada (Fases 5/6) se manejarán acá cuando existan.
+                    case MessageType.FrameData:
+                        HandleFrameData(message.Value.Payload);
+                        break;
+
+                    default:
+                        // El "Pong" de respuesta a nuestros latidos no necesita acción propia:
+                        // el solo hecho de poder leerlo confirma que la conexión sigue viva.
+                        // Los eventos de entrada (Fase 6) se manejarán acá cuando existan.
+                        break;
+                }
             }
         }
         finally
@@ -182,8 +196,7 @@ public sealed class ViewerSession : IAsyncDisposable
         {
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
-                await MessageFramer.WriteAsync(_stream!, MessageType.Ping, [], cancellationToken)
-                    .ConfigureAwait(false);
+                await WriteFramedAsync(MessageType.Ping, [], cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -213,6 +226,42 @@ public sealed class ViewerSession : IAsyncDisposable
             ?? throw new InvalidDataException($"No se pudo deserializar el payload de {expectedType}.");
     }
 
+    /// <summary>
+    /// Deserializa un <see cref="FrameDataMessage"/> recién leído y lo republica como
+    /// <see cref="CapturedFrame"/> (el mismo modelo que ya usa <c>IScreenCapturer</c> del
+    /// lado Host), para que quien escuche <see cref="FrameReceived"/> no necesite conocer
+    /// el mensaje de protocolo, solo el modelo de dominio.
+    /// </summary>
+    private void HandleFrameData(byte[] payload)
+    {
+        var message = JsonSerializer.Deserialize<FrameDataMessage>(payload)
+            ?? throw new InvalidDataException("No se pudo deserializar el payload de FrameData.");
+
+        var frame = new CapturedFrame
+        {
+            EncodedBytes = message.JpegBytes,
+            WidthPixels = message.WidthPixels,
+            HeightPixels = message.HeightPixels,
+            CapturedAtUtc = message.CapturedAtUtc,
+        };
+
+        FrameReceived?.Invoke(this, frame);
+    }
+
+    /// <summary>Envía un mensaje, garantizando que ninguna otra escritura se entrelace (ver <see cref="_writeLock"/>).</summary>
+    private async Task WriteFramedAsync(MessageType type, byte[] payload, CancellationToken cancellationToken)
+    {
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await MessageFramer.WriteAsync(_stream!, type, payload, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     private void RaiseSessionEnded(SessionEndReason reason, string? detail = null) =>
         SessionEnded?.Invoke(this, new SessionEndedEventArgs(reason, detail));
 
@@ -233,5 +282,6 @@ public sealed class ViewerSession : IAsyncDisposable
         _stream?.Dispose();
         _client?.Dispose();
         _sessionCts?.Dispose();
+        _writeLock.Dispose();
     }
 }

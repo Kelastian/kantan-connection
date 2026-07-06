@@ -25,6 +25,13 @@ public sealed class HostSession : IAsyncDisposable
     private readonly ScreenInfo _screenInfo;
     private readonly string _pin;
 
+    // El stream lo escriben dos "dueños" distintos y potencialmente concurrentes: el
+    // bucle de captura/envío de video (Fase 5, vía SendFrameAsync) y RunPostAuthLoopAsync
+    // al responder un Ping con Pong. Un socket TCP soporta lectura y escritura simultáneas,
+    // pero NO dos escrituras simultáneas (los bytes de ambos mensajes se entrelazarían y
+    // corromperían el framing de MessageFramer); este semáforo serializa toda escritura.
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
     private TcpClient? _client;
     private NetworkStream? _stream;
     private CancellationTokenSource? _sessionCts;
@@ -78,8 +85,8 @@ public sealed class HostSession : IAsyncDisposable
                 .ConfigureAwait(false);
             ViewerConnecting?.Invoke(this, hello);
 
-            await MessageFramer.WriteAsync(
-                _stream, MessageType.ScreenInfo, JsonSerializer.SerializeToUtf8Bytes(_screenInfo), cancellationToken)
+            await WriteFramedAsync(
+                MessageType.ScreenInfo, JsonSerializer.SerializeToUtf8Bytes(_screenInfo), cancellationToken)
                 .ConfigureAwait(false);
 
             if (!await NegotiatePinAsync(cancellationToken).ConfigureAwait(false))
@@ -112,8 +119,8 @@ public sealed class HostSession : IAsyncDisposable
 
         for (var attemptsUsed = 0; attemptsUsed < MaxPinAttempts; attemptsUsed++)
         {
-            await MessageFramer.WriteAsync(
-                _stream!, MessageType.PinRequest, JsonSerializer.SerializeToUtf8Bytes(pinRequest), cancellationToken)
+            await WriteFramedAsync(
+                MessageType.PinRequest, JsonSerializer.SerializeToUtf8Bytes(pinRequest), cancellationToken)
                 .ConfigureAwait(false);
 
             var attempt = await ReadExpectedAsync<PinAttemptMessage>(MessageType.PinAttempt, cancellationToken)
@@ -138,14 +145,34 @@ public sealed class HostSession : IAsyncDisposable
     private Task SendPinResultAsync(bool accepted, int remainingAttempts, CancellationToken cancellationToken)
     {
         var result = new PinResultMessage { Accepted = accepted, RemainingAttempts = remainingAttempts };
-        return MessageFramer.WriteAsync(
-            _stream!, MessageType.PinResult, JsonSerializer.SerializeToUtf8Bytes(result), cancellationToken);
+        return WriteFramedAsync(MessageType.PinResult, JsonSerializer.SerializeToUtf8Bytes(result), cancellationToken);
+    }
+
+    /// <summary>
+    /// Envía un fotograma ya capturado y codificado al Viewer conectado. Pensado para
+    /// llamarse repetidamente desde el bucle de captura de video (compuesto en <c>App</c>,
+    /// que combina un <c>IScreenCapturer</c> con esta sesión) mientras la sesión esté
+    /// <see cref="Connected"/>. Es seguro invocarlo aunque, al mismo tiempo,
+    /// <see cref="RunPostAuthLoopAsync"/> esté respondiendo un <c>Pong</c>: ambas
+    /// escrituras se serializan a través de <see cref="_writeLock"/>.
+    /// </summary>
+    public Task SendFrameAsync(CapturedFrame frame, CancellationToken cancellationToken = default)
+    {
+        var message = new FrameDataMessage
+        {
+            JpegBytes = frame.EncodedBytes,
+            WidthPixels = frame.WidthPixels,
+            HeightPixels = frame.HeightPixels,
+            CapturedAtUtc = frame.CapturedAtUtc,
+        };
+
+        return WriteFramedAsync(MessageType.FrameData, JsonSerializer.SerializeToUtf8Bytes(message), cancellationToken);
     }
 
     /// <summary>
     /// Tras autenticar, la sesión queda "viva" respondiendo latidos y esperando un cierre
-    /// ordenado. El envío real de video (Fase 5) y la recepción de entrada (Fase 6) se
-    /// añadirán sobre este mismo bucle más adelante.
+    /// ordenado, mientras en paralelo el llamador puede estar usando <see cref="SendFrameAsync"/>
+    /// para transmitir video (Fase 5). La recepción de entrada (Fase 6) se añadirá acá.
     /// </summary>
     private async Task RunPostAuthLoopAsync(CancellationToken cancellationToken)
     {
@@ -161,8 +188,7 @@ public sealed class HostSession : IAsyncDisposable
             switch (message.Value.Type)
             {
                 case MessageType.Ping:
-                    await MessageFramer.WriteAsync(_stream!, MessageType.Pong, [], cancellationToken)
-                        .ConfigureAwait(false);
+                    await WriteFramedAsync(MessageType.Pong, [], cancellationToken).ConfigureAwait(false);
                     break;
 
                 case MessageType.Bye:
@@ -170,8 +196,9 @@ public sealed class HostSession : IAsyncDisposable
                     return;
 
                 default:
-                    // Mensajes de video/entrada (Fases 5/6) se manejarán acá cuando existan;
-                    // por ahora, cualquier otro tipo se ignora sin romper el bucle.
+                    // El Viewer no manda FrameData (eso viaja Host -> Viewer). Los eventos
+                    // de entrada (Fase 6) se manejarán acá cuando existan; por ahora,
+                    // cualquier otro tipo se ignora sin romper el bucle.
                     break;
             }
         }
@@ -192,6 +219,20 @@ public sealed class HostSession : IAsyncDisposable
 
         return JsonSerializer.Deserialize<T>(message.Value.Payload)
             ?? throw new InvalidDataException($"No se pudo deserializar el payload de {expectedType}.");
+    }
+
+    /// <summary>Envía un mensaje, garantizando que ninguna otra escritura se entrelace (ver <see cref="_writeLock"/>).</summary>
+    private async Task WriteFramedAsync(MessageType type, byte[] payload, CancellationToken cancellationToken)
+    {
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await MessageFramer.WriteAsync(_stream!, type, payload, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     private void RaiseSessionEnded(SessionEndReason reason, string? detail = null) =>
@@ -215,5 +256,6 @@ public sealed class HostSession : IAsyncDisposable
         _client?.Dispose();
         _listener.Stop();
         _sessionCts?.Dispose();
+        _writeLock.Dispose();
     }
 }

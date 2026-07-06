@@ -1,4 +1,7 @@
+using System.IO;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using KantanConnect.Core.Models;
 using KantanConnect.Core.Session;
 
 namespace KantanConnect.App.ViewModels;
@@ -33,6 +36,7 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
 
         _viewerSession.PinRejected += OnPinRejected;
         _viewerSession.Connected += OnConnected;
+        _viewerSession.FrameReceived += OnFrameReceived;
         _viewerSession.SessionEnded += OnSessionEnded;
         _viewerSession.Start();
     }
@@ -43,6 +47,15 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
     {
         get => _statusText;
         private set => SetField(ref _statusText, value);
+    }
+
+    private BitmapSource? _currentFrame;
+
+    /// <summary>El último fotograma recibido del Host, listo para enlazar a un <c>Image</c> de WPF.</summary>
+    public BitmapSource? CurrentFrame
+    {
+        get => _currentFrame;
+        private set => SetField(ref _currentFrame, value);
     }
 
     private async Task<string> OnRequestPinFromUserAsync(int pinLength)
@@ -61,9 +74,40 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
 
     private void OnConnected(object? sender, EventArgs e)
     {
-        _dispatcher.Invoke(() =>
-            StatusText = $"Conectado con \"{HostDisplayName}\". " +
-                          "(La recepción de video se habilita en una fase futura.)");
+        _dispatcher.Invoke(() => StatusText = $"Conectado con \"{HostDisplayName}\".");
+    }
+
+    /// <summary>
+    /// Decodifica el JPEG recibido a un <see cref="BitmapSource"/> inmutable y lo publica
+    /// para que el <c>Image</c> de la ventana lo muestre. Se dispara desde el hilo de
+    /// fondo de <see cref="ViewerSession"/>, así que el trabajo se salta al hilo de UI
+    /// con <see cref="Dispatcher.Invoke"/> antes de tocar <see cref="CurrentFrame"/>.
+    /// </summary>
+    private void OnFrameReceived(object? sender, CapturedFrame frame)
+    {
+        var bitmap = DecodeJpegToFrozenBitmap(frame.EncodedBytes);
+        _dispatcher.Invoke(() => CurrentFrame = bitmap);
+    }
+
+    /// <summary>
+    /// Decodificar en el hilo de fondo (acá) y solo "congelar+asignar" en el UI thread
+    /// evita bloquear ese hilo con la decodificación JPEG de cada fotograma; <c>Freeze()</c>
+    /// es lo que permite crear el <see cref="BitmapImage"/> fuera del hilo de UI y aun así
+    /// poder usarlo luego como <see cref="CurrentFrame"/> (los objetos WPF sin congelar
+    /// solo se pueden tocar desde el hilo que los creó).
+    /// </summary>
+    private static BitmapImage DecodeJpegToFrozenBitmap(byte[] jpegBytes)
+    {
+        using var stream = new MemoryStream(jpegBytes);
+
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.StreamSource = stream;
+        bitmap.EndInit();
+        bitmap.Freeze();
+
+        return bitmap;
     }
 
     private void OnSessionEnded(object? sender, SessionEndedEventArgs e)

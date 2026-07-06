@@ -122,6 +122,92 @@ public class HostViewerSessionTests
         Assert.Equal(TestScreenInfo.HeightPixels, receivedScreenInfo.HeightPixels);
     }
 
+    [Fact]
+    public async Task SendFrameAsync_ViewerReceivesFrameWithSameBytesAndMetadata()
+    {
+        var port = GetRandomFreeTcpPort();
+        await using var host = new HostSession("4829", TestScreenInfo, port);
+        await using var viewer = new ViewerSession("127.0.0.1", port, "viewer-5", "PC-NIETO")
+        {
+            RequestPinFromUserAsync = _ => Task.FromResult("4829"),
+        };
+
+        var hostConnectedTcs = NewTcs<bool>();
+        var frameReceivedTcs = NewTcs<CapturedFrame>();
+        host.Connected += (_, _) => hostConnectedTcs.TrySetResult(true);
+        viewer.FrameReceived += (_, frame) => frameReceivedTcs.TrySetResult(frame);
+
+        host.Start();
+        viewer.Start();
+        await WaitWithTimeoutAsync(hostConnectedTcs.Task);
+
+        var sentFrame = new CapturedFrame
+        {
+            EncodedBytes = [1, 2, 3, 4, 5],
+            WidthPixels = TestScreenInfo.WidthPixels,
+            HeightPixels = TestScreenInfo.HeightPixels,
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+        };
+        await host.SendFrameAsync(sentFrame);
+
+        var receivedFrame = await WaitWithTimeoutAsync(frameReceivedTcs.Task);
+
+        Assert.Equal(sentFrame.EncodedBytes, receivedFrame.EncodedBytes);
+        Assert.Equal(sentFrame.WidthPixels, receivedFrame.WidthPixels);
+        Assert.Equal(sentFrame.HeightPixels, receivedFrame.HeightPixels);
+        Assert.Equal(sentFrame.CapturedAtUtc, receivedFrame.CapturedAtUtc);
+    }
+
+    [Fact]
+    public async Task SendFrameAsync_ManyFramesSentRapidly_AllArriveUncorrupted()
+    {
+        // Ejercita el semáforo de escritura de HostSession: manda muchos frames "pegados"
+        // (sin esperar cada uno) para forzar que WriteFramedAsync los serialice
+        // correctamente en vez de dejar que sus bytes se entrelacen en el socket.
+        var port = GetRandomFreeTcpPort();
+        await using var host = new HostSession("4829", TestScreenInfo, port);
+        await using var viewer = new ViewerSession("127.0.0.1", port, "viewer-6", "PC-NIETO")
+        {
+            RequestPinFromUserAsync = _ => Task.FromResult("4829"),
+        };
+
+        var hostConnectedTcs = NewTcs<bool>();
+        host.Connected += (_, _) => hostConnectedTcs.TrySetResult(true);
+
+        const int frameCount = 50;
+        var receivedFrames = new List<CapturedFrame>();
+        var allReceivedTcs = NewTcs<bool>();
+        viewer.FrameReceived += (_, frame) =>
+        {
+            receivedFrames.Add(frame);
+            if (receivedFrames.Count == frameCount)
+            {
+                allReceivedTcs.TrySetResult(true);
+            }
+        };
+
+        host.Start();
+        viewer.Start();
+        await WaitWithTimeoutAsync(hostConnectedTcs.Task);
+
+        var sendTasks = Enumerable.Range(0, frameCount).Select(i => host.SendFrameAsync(new CapturedFrame
+        {
+            EncodedBytes = [(byte)i, (byte)(i + 1)],
+            WidthPixels = TestScreenInfo.WidthPixels,
+            HeightPixels = TestScreenInfo.HeightPixels,
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+        }));
+        await Task.WhenAll(sendTasks);
+
+        await WaitWithTimeoutAsync(allReceivedTcs.Task, timeoutSeconds: 10);
+
+        Assert.Equal(frameCount, receivedFrames.Count);
+        // Cada frame trae un byte índice distinto (0..49); si el framing se corrompiera,
+        // estos valores no formarían el conjunto completo y ordenado esperado.
+        var indices = receivedFrames.Select(f => (int)f.EncodedBytes[0]).OrderBy(i => i).ToList();
+        Assert.Equal(Enumerable.Range(0, frameCount), indices);
+    }
+
     private static TaskCompletionSource<T> NewTcs<T>() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 

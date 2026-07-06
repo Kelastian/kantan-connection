@@ -5,9 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Kantan Connect — Conectando"
-        Height="280" Width="480"
+        Height="720" Width="1100"
+        MinHeight="360" MinWidth="480"
         WindowStartupLocation="CenterOwner">
-    <Grid Margin="24">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -15,23 +16,47 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="{Binding HostDisplayName, StringFormat='Conectando a \{0\}'}"
+                   Text="{Binding HostDisplayName, StringFormat='Conectado a \{0\}'}"
                    FontSize="20" FontWeight="Bold"
                    HorizontalAlignment="Center"
-                   Margin="0,0,0,16"/>
+                   Margin="0,0,0,8"/>
 
-        <TextBlock Grid.Row="1"
-                   Text="{Binding StatusText}"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   TextAlignment="Center"
-                   Foreground="Gray"/>
+        <Grid Grid.Row="1">
+            <!-- Fondo oscuro + mensaje de estado, visibles solo mientras no llegó
+                 todavía ningún fotograma (ver DataTrigger más abajo). -->
+            <Border Background="#202020">
+                <TextBlock Text="{Binding StatusText}"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center"
+                           Foreground="White"
+                           Margin="24"/>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CurrentFrame}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </Style>
+                </Border.Style>
+            </Border>
 
-        <Button Grid.Row="2"
-                Content="Cerrar"
-                Click="OnCloseClick"
-                Padding="16,8"
-                HorizontalAlignment="Center"/>
+            <Image Source="{Binding CurrentFrame}"
+                   Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+            <TextBlock Text="{Binding StatusText}"
+                       Foreground="Gray"
+                       VerticalAlignment="Center"
+                       Margin="0,0,16,0"/>
+            <Button Content="Cerrar"
+                    Click="OnCloseClick"
+                    Padding="16,8"/>
+        </StackPanel>
     </Grid>
 </Window>

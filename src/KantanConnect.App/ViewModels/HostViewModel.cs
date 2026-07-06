@@ -1,9 +1,11 @@
 using System.Windows.Threading;
+using KantanConnect.Core.Abstractions;
 using KantanConnect.Core.Discovery;
-using KantanConnect.Core.Models;
 using KantanConnect.Core.Protocol.Messages;
 using KantanConnect.Core.Security;
 using KantanConnect.Core.Session;
+using KantanConnect.Windows.Capture;
+using KantanConnect.Windows.Encoding;
 
 namespace KantanConnect.App.ViewModels;
 
@@ -18,9 +20,20 @@ namespace KantanConnect.App.ViewModels;
 /// </summary>
 public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
 {
+    /// <summary>
+    /// Cap de fotogramas por segundo del bucle de captura+envío. 20 FPS es un punto medio
+    /// dentro del rango 15-30 previsto en el plan: suficientemente fluido para compartir
+    /// pantalla (no video de acción) sin exigir de más a la codificación JPEG por frame.
+    /// </summary>
+    private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(1000.0 / 20);
+
     private readonly Dispatcher _dispatcher;
     private readonly DiscoveryBroadcaster _broadcaster;
     private readonly HostSession _hostSession;
+    private readonly IScreenCapturer _screenCapturer;
+
+    private CancellationTokenSource? _captureLoopCts;
+    private Task? _captureLoopTask;
 
     private string _statusText = "Esperando que alguien se conecte...";
     private string? _viewerDisplayName;
@@ -41,12 +54,12 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
         };
         _broadcaster = new DiscoveryBroadcaster(beacon);
 
-        // ScreenInfo real (basado en la pantalla física del Host) llega en la Fase 4
-        // junto con la captura DXGI/GDI. Por ahora se informa un valor de referencia
-        // (Full HD) para que el protocolo de sesión ya quede completo y probado.
-        var placeholderScreenInfo = new ScreenInfo { WidthPixels = 1920, HeightPixels = 1080 };
+        _screenCapturer = ScreenCapturerFactory.Create(
+            new JpegFrameEncoder(),
+            onFallbackToGdi: ex => _dispatcher.Invoke(() =>
+                StatusText = $"Aviso: captura por GPU no disponible ({ex.GetType().Name}), usando modo compatible."));
 
-        _hostSession = new HostSession(Pin, placeholderScreenInfo, DiscoveryDefaults.TcpSessionPort);
+        _hostSession = new HostSession(Pin, _screenCapturer.GetScreenInfo(), DiscoveryDefaults.TcpSessionPort);
         _hostSession.ViewerConnecting += OnViewerConnecting;
         _hostSession.PinRejected += OnPinRejected;
         _hostSession.Connected += OnConnected;
@@ -100,13 +113,17 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
     {
         _dispatcher.Invoke(() =>
         {
-            StatusText = $"Conectado con \"{ViewerDisplayName}\". " +
-                          "(La transmisión de pantalla se habilita en una fase futura.)";
+            StatusText = $"Conectado con \"{ViewerDisplayName}\". Transmitiendo pantalla...";
         });
+
+        _captureLoopCts = new CancellationTokenSource();
+        _captureLoopTask = RunCaptureLoopAsync(_captureLoopCts.Token);
     }
 
     private void OnSessionEnded(object? sender, SessionEndedEventArgs e)
     {
+        StopCaptureLoop();
+
         _dispatcher.Invoke(() =>
         {
             StatusText = e.Reason switch
@@ -120,9 +137,69 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// Captura y envía fotogramas en bucle mientras la sesión esté conectada, respetando
+    /// <see cref="FrameInterval"/> como cap de FPS. Corre en la tarea de fondo que ya
+    /// mantiene <c>HostSession</c> (no bloquea el hilo de UI).
+    /// </summary>
+    private async Task RunCaptureLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var frameStartedAt = DateTimeOffset.UtcNow;
+
+                var frame = await _screenCapturer.CaptureNextFrameAsync(cancellationToken).ConfigureAwait(false);
+                await _hostSession.SendFrameAsync(frame, cancellationToken).ConfigureAwait(false);
+
+                var elapsed = DateTimeOffset.UtcNow - frameStartedAt;
+                var remainingDelay = FrameInterval - elapsed;
+                if (remainingDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(remainingDelay, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelación esperada al terminar la sesión o cerrar la ventana.
+        }
+    }
+
+    /// <summary>
+    /// Solo cancela el bucle; deliberadamente NO limpia <see cref="_captureLoopTask"/> a
+    /// null (a diferencia del resto de los "Stop*" del proyecto), porque
+    /// <see cref="DisposeAsync"/> necesita esa referencia para esperar a que el bucle
+    /// termine de verdad antes de liberar <see cref="_screenCapturer"/>.
+    /// </summary>
+    private void StopCaptureLoop()
+    {
+        _captureLoopCts?.Cancel();
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _broadcaster.DisposeAsync();
         await _hostSession.DisposeAsync();
+
+        // HostSession.DisposeAsync ya disparó SessionEnded -> StopCaptureLoop (cancela
+        // el token); acá esperamos a que la tarea del bucle realmente termine antes de
+        // liberar _screenCapturer, o una captura en curso podría lanzar sobre un objeto
+        // ya dispuesto.
+        if (_captureLoopTask is not null)
+        {
+            try
+            {
+                await _captureLoopTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelación esperada al cerrar la ventana.
+            }
+        }
+
+        _captureLoopCts?.Dispose();
+        _screenCapturer.Dispose();
     }
 }

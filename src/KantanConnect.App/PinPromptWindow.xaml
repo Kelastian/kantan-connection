@@ -1,0 +1,38 @@
+<Window x:Class="KantanConnect.App.PinPromptWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Ingresá el PIN"
+        Height="220" Width="360"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="PromptText"
+                   Text="Ingresá el PIN de 6 dígitos mostrado en el otro equipo:"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,16"/>
+
+        <TextBox Grid.Row="1"
+                 x:Name="PinTextBox"
+                 FontSize="24" FontFamily="Consolas"
+                 HorizontalContentAlignment="Center"
+                 MaxLength="6"
+                 Padding="8"/>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancelar" Click="OnCancelClick" Padding="16,8" Margin="0,0,8,0"/>
+            <Button Content="Conectar" Click="OnConfirmClick" Padding="16,8" IsDefault="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

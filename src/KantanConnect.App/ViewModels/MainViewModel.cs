@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows;
 using System.Windows.Threading;
 using KantanConnect.Core.Discovery;
 
@@ -7,8 +6,9 @@ namespace KantanConnect.App.ViewModels;
 
 /// <summary>
 /// ViewModel de la ventana principal: mantiene la lista de peers descubiertos en la LAN
-/// y expone los comandos "Compartir mi pantalla" / "Conectar". Es el primer punto donde
-/// se conectan las piezas de <c>Core</c> (protocolo/descubrimiento) con la UI de <c>App</c>.
+/// y expone los comandos "Compartir mi pantalla" / "Conectar", que abren
+/// <c>HostWindow</c>/<c>ViewerWindow</c> respectivamente. Es el primer punto donde se
+/// conectan las piezas de <c>Core</c> (protocolo/descubrimiento) con la UI de <c>App</c>.
 /// </summary>
 public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
 {
@@ -16,10 +16,10 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
     private readonly string _localDisplayName = Environment.MachineName;
     private readonly Dispatcher _dispatcher;
     private readonly DiscoveryListener _discoveryListener;
-    private DiscoveryBroadcaster? _activeBroadcaster;
 
     private bool _isSharing;
     private string _statusText = "Buscando otros equipos en la red...";
+    private HostWindow? _hostWindow;
 
     public MainViewModel()
     {
@@ -62,58 +62,51 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
     {
         if (IsSharing)
         {
-            StopSharing();
+            _hostWindow?.Close();
         }
         else
         {
-            StartSharing();
+            OpenHostWindow();
         }
     }
 
-    private void StartSharing()
+    private void OpenHostWindow()
     {
-        var beacon = new DiscoveryBeacon
+        _hostWindow = new HostWindow(_localPeerId, _localDisplayName)
         {
-            App = DiscoveryBeacon.AppIdentifier,
-            PeerId = _localPeerId,
-            DisplayName = _localDisplayName,
-            TcpPort = DiscoveryDefaults.TcpSessionPort,
-            ProtocolVersion = "1.0",
+            Owner = System.Windows.Application.Current.MainWindow,
         };
-
-        _activeBroadcaster = new DiscoveryBroadcaster(beacon);
-        _activeBroadcaster.Start();
+        _hostWindow.Closed += OnHostWindowClosed;
         IsSharing = true;
-        StatusText = $"Compartiendo como \"{_localDisplayName}\". Esperando que alguien se conecte...";
+        StatusText = $"Compartiendo como \"{_localDisplayName}\".";
+        _hostWindow.Show();
     }
 
-    private void StopSharing()
+    private void OnHostWindowClosed(object? sender, EventArgs e)
     {
-        // Fire-and-forget intencional: ToggleSharing es síncrono porque lo dispara
-        // directamente un RelayCommand. Detener el broadcaster es solo cancelar su
-        // bucle en memoria (sin I/O bloqueante), así que no hace falta await aquí.
-        _ = _activeBroadcaster?.StopAsync();
-        _activeBroadcaster = null;
+        if (_hostWindow is not null)
+        {
+            _hostWindow.Closed -= OnHostWindowClosed;
+        }
+
+        _hostWindow = null;
         IsSharing = false;
         StatusText = "Buscando otros equipos en la red...";
     }
 
     private void ConnectToSelectedPeer()
     {
-        // La sesión TCP + emparejamiento por PIN se implementa en la Fase 3.
-        // Por ahora dejamos explícito en la UI que el botón ya sabe A QUIÉN
-        // conectarse, aunque todavía no exista el mecanismo para hacerlo.
         if (SelectedPeer is null)
         {
             return;
         }
 
-        MessageBox.Show(
-            $"Conectar a \"{SelectedPeer.DisplayName}\" ({SelectedPeer.IpAddress}:{SelectedPeer.TcpPort}) " +
-            "se implementará en la Fase 3 (sesión TCP + PIN).",
-            "Kantan Connect",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        var viewerWindow = new ViewerWindow(
+            SelectedPeer.IpAddress, SelectedPeer.TcpPort, SelectedPeer.DisplayName)
+        {
+            Owner = System.Windows.Application.Current.MainWindow,
+        };
+        viewerWindow.Show();
     }
 
     private void OnPeerDiscoveredOrUpdated(object? sender, PeerChangedEventArgs e)
@@ -123,7 +116,11 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
             var existing = Peers.FirstOrDefault(p => p.Id == e.Peer.Id);
             if (existing is not null)
             {
-                Peers.Remove(existing);
+                // Actualizar in-place (no Remove+Add): recrear el ítem en cada beacon
+                // (cada ~1s, ver DiscoveryBroadcaster) le hacía perder a WPF la
+                // selección de la fila justo mientras el usuario intentaba hacer clic.
+                existing.UpdateFrom(e.Peer);
+                return;
             }
 
             Peers.Add(new PeerListItemViewModel(e.Peer));
@@ -149,11 +146,7 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_activeBroadcaster is not null)
-        {
-            await _activeBroadcaster.DisposeAsync();
-        }
-
+        _hostWindow?.Close();
         await _discoveryListener.DisposeAsync();
     }
 }

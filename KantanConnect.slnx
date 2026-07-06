@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KantanConnect.App/KantanConnect.App.csproj" />
+    <Project Path="src/KantanConnect.Core/KantanConnect.Core.csproj" />
+    <Project Path="src/KantanConnect.Windows/KantanConnect.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KantanConnect.Core.Tests/KantanConnect.Core.Tests.csproj" />
+  </Folder>
+</Solution>

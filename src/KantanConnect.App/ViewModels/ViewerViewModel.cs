@@ -58,6 +58,22 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
         private set => SetField(ref _currentFrame, value);
     }
 
+    /// <summary>
+    /// Envía un evento de ratón/teclado capturado en <c>ViewerWindow</c> (code-behind,
+    /// donde vive la medición geométrica del control <c>Image</c>) al Host. Fire-and-forget
+    /// intencional: los manejadores de eventos de entrada de WPF son <c>void</c>, no
+    /// <c>async Task</c>, y no tiene sentido bloquear la UI esperando el envío de cada
+    /// movimiento de mouse. Si la sesión ya no está conectada, el envío simplemente falla
+    /// en silencio (mismo criterio que el resto de fallos de red de esta sesión, que ya
+    /// se reportan vía <see cref="ViewerSession.SessionEnded"/>, no acá).
+    /// </summary>
+    public void SendInputEvent(InputEvent inputEvent)
+    {
+        _ = _viewerSession.SendInputEventAsync(inputEvent).ContinueWith(
+            _ => { /* Errores de un solo evento de entrada no ameritan acción propia. */ },
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+    }
+
     private async Task<string> OnRequestPinFromUserAsync(int pinLength)
     {
         var message = _lastRejectionMessage;

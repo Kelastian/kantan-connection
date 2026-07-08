@@ -1,11 +1,13 @@
 using System.Windows.Threading;
 using KantanConnect.Core.Abstractions;
 using KantanConnect.Core.Discovery;
+using KantanConnect.Core.Models;
 using KantanConnect.Core.Protocol.Messages;
 using KantanConnect.Core.Security;
 using KantanConnect.Core.Session;
 using KantanConnect.Windows.Capture;
 using KantanConnect.Windows.Encoding;
+using KantanConnect.Windows.Input;
 
 namespace KantanConnect.App.ViewModels;
 
@@ -31,6 +33,7 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
     private readonly DiscoveryBroadcaster _broadcaster;
     private readonly HostSession _hostSession;
     private readonly IScreenCapturer _screenCapturer;
+    private readonly IInputInjector _inputInjector = new SendInputInjector();
 
     private CancellationTokenSource? _captureLoopCts;
     private Task? _captureLoopTask;
@@ -63,6 +66,7 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
         _hostSession.ViewerConnecting += OnViewerConnecting;
         _hostSession.PinRejected += OnPinRejected;
         _hostSession.Connected += OnConnected;
+        _hostSession.InputEventReceived += OnInputEventReceived;
         _hostSession.SessionEnded += OnSessionEnded;
 
         _broadcaster.Start();
@@ -108,6 +112,16 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
             StatusText = $"PIN incorrecto. Intentos restantes: {e.RemainingAttempts}.";
         });
     }
+
+    /// <summary>
+    /// Reproduce el evento de entrada recibido con <c>SendInput</c>. A propósito NO se
+    /// salta al hilo de UI (a diferencia del resto de manejadores de esta clase):
+    /// <c>SendInput</c> es una llamada directa a <c>user32.dll</c> que actúa sobre el
+    /// sistema operativo entero, no sobre esta ventana WPF, así que no tiene la
+    /// restricción de afinidad de hilo que sí tienen los objetos de WPF. Saltar acá
+    /// agregaría latencia innecesaria al control remoto sin ningún beneficio.
+    /// </summary>
+    private void OnInputEventReceived(object? sender, InputEvent inputEvent) => _inputInjector.Inject(inputEvent);
 
     private void OnConnected(object? sender, EventArgs e)
     {

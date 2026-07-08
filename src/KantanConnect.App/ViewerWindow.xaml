@@ -44,9 +44,18 @@
                 </Border.Style>
             </Border>
 
-            <Image Source="{Binding CurrentFrame}"
+            <Image x:Name="RemoteScreenImage"
+                   Source="{Binding CurrentFrame}"
                    Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   Focusable="True"
+                   Cursor="Cross"
+                   MouseMove="OnRemoteScreenMouseMove"
+                   MouseDown="OnRemoteScreenMouseDown"
+                   MouseUp="OnRemoteScreenMouseUp"
+                   MouseWheel="OnRemoteScreenMouseWheel"
+                   KeyDown="OnRemoteScreenKeyDown"
+                   KeyUp="OnRemoteScreenKeyUp"/>
         </Grid>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">

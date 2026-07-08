@@ -46,6 +46,9 @@ public sealed class HostSession : IAsyncDisposable
     /// <summary>Se dispara cuando el PIN fue aceptado: la sesión ya está lista para video/entrada.</summary>
     public event EventHandler? Connected;
 
+    /// <summary>Se dispara cada vez que llega un evento de ratón/teclado del Viewer.</summary>
+    public event EventHandler<InputEvent>? InputEventReceived;
+
     /// <summary>Se dispara cuando la sesión termina, por cualquier motivo.</summary>
     public event EventHandler<SessionEndedEventArgs>? SessionEnded;
 
@@ -170,9 +173,9 @@ public sealed class HostSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Tras autenticar, la sesión queda "viva" respondiendo latidos y esperando un cierre
-    /// ordenado, mientras en paralelo el llamador puede estar usando <see cref="SendFrameAsync"/>
-    /// para transmitir video (Fase 5). La recepción de entrada (Fase 6) se añadirá acá.
+    /// Tras autenticar, la sesión queda "viva" respondiendo latidos, recibiendo entrada
+    /// (Fase 6) y esperando un cierre ordenado, mientras en paralelo el llamador puede
+    /// estar usando <see cref="SendFrameAsync"/> para transmitir video (Fase 5).
     /// </summary>
     private async Task RunPostAuthLoopAsync(CancellationToken cancellationToken)
     {
@@ -191,17 +194,33 @@ public sealed class HostSession : IAsyncDisposable
                     await WriteFramedAsync(MessageType.Pong, [], cancellationToken).ConfigureAwait(false);
                     break;
 
+                case MessageType.InputEvent:
+                    HandleInputEvent(message.Value.Payload);
+                    break;
+
                 case MessageType.Bye:
                     RaiseSessionEnded(SessionEndReason.RemoteClosed);
                     return;
 
                 default:
-                    // El Viewer no manda FrameData (eso viaja Host -> Viewer). Los eventos
-                    // de entrada (Fase 6) se manejarán acá cuando existan; por ahora,
-                    // cualquier otro tipo se ignora sin romper el bucle.
+                    // El Viewer no manda FrameData (eso viaja Host -> Viewer); cualquier
+                    // otro tipo se ignora sin romper el bucle.
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Deserializa un <see cref="InputEvent"/> recién leído y republica el evento para
+    /// que quien escuche <see cref="InputEventReceived"/> (en <c>App</c>, un
+    /// <c>IInputInjector</c>) lo reproduzca con <c>SendInput</c>.
+    /// </summary>
+    private void HandleInputEvent(byte[] payload)
+    {
+        var inputEvent = JsonSerializer.Deserialize<InputEvent>(payload)
+            ?? throw new InvalidDataException("No se pudo deserializar el payload de InputEvent.");
+
+        InputEventReceived?.Invoke(this, inputEvent);
     }
 
     private async Task<T> ReadExpectedAsync<T>(MessageType expectedType, CancellationToken cancellationToken)

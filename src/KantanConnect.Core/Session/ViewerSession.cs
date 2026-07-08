@@ -146,8 +146,9 @@ public sealed class ViewerSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Tras autenticar, la sesión queda "viva" mandando latidos periódicos y recibiendo
-    /// video (Fase 5). El envío de entrada (Fase 6) se añadirá sobre este mismo bucle.
+    /// Tras autenticar, la sesión queda "viva" mandando latidos periódicos, recibiendo
+    /// video (Fase 5) y enviando entrada vía <see cref="SendInputEventAsync"/> (Fase 6,
+    /// llamado desde afuera de este bucle mientras dure la conexión).
     /// </summary>
     private async Task RunPostAuthLoopAsync(CancellationToken cancellationToken)
     {
@@ -208,6 +209,15 @@ public sealed class ViewerSession : IAsyncDisposable
             // El timer se dispuso al salir del bucle principal; nada que hacer.
         }
     }
+
+    /// <summary>
+    /// Envía un evento de ratón/teclado capturado en el Viewer para que el Host lo
+    /// reproduzca con <c>SendInput</c> (Fase 6). Pensado para llamarse repetidamente
+    /// desde los manejadores de eventos de entrada de <c>ViewerWindow</c> mientras la
+    /// sesión esté <see cref="Connected"/>.
+    /// </summary>
+    public Task SendInputEventAsync(InputEvent inputEvent, CancellationToken cancellationToken = default) =>
+        WriteFramedAsync(MessageType.InputEvent, JsonSerializer.SerializeToUtf8Bytes(inputEvent), cancellationToken);
 
     private async Task<T> ReadExpectedAsync<T>(MessageType expectedType, CancellationToken cancellationToken)
     {

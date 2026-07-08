@@ -208,6 +208,69 @@ public class HostViewerSessionTests
         Assert.Equal(Enumerable.Range(0, frameCount), indices);
     }
 
+    [Fact]
+    public async Task SendInputEventAsync_MouseMove_HostReceivesEventWithSameNormalizedCoordinates()
+    {
+        var port = GetRandomFreeTcpPort();
+        await using var host = new HostSession("4829", TestScreenInfo, port);
+        await using var viewer = new ViewerSession("127.0.0.1", port, "viewer-7", "PC-NIETO")
+        {
+            RequestPinFromUserAsync = _ => Task.FromResult("4829"),
+        };
+
+        var hostConnectedTcs = NewTcs<bool>();
+        var inputReceivedTcs = NewTcs<InputEvent>();
+        host.Connected += (_, _) => hostConnectedTcs.TrySetResult(true);
+        host.InputEventReceived += (_, inputEvent) => inputReceivedTcs.TrySetResult(inputEvent);
+
+        host.Start();
+        viewer.Start();
+        await WaitWithTimeoutAsync(hostConnectedTcs.Task);
+
+        var sentEvent = new InputEvent
+        {
+            Kind = InputEventKind.MouseMove,
+            NormalizedX = 0.25,
+            NormalizedY = 0.75,
+        };
+        await viewer.SendInputEventAsync(sentEvent);
+
+        var receivedEvent = await WaitWithTimeoutAsync(inputReceivedTcs.Task);
+
+        Assert.Equal(InputEventKind.MouseMove, receivedEvent.Kind);
+        Assert.Equal(sentEvent.NormalizedX, receivedEvent.NormalizedX);
+        Assert.Equal(sentEvent.NormalizedY, receivedEvent.NormalizedY);
+    }
+
+    [Fact]
+    public async Task SendInputEventAsync_KeyDown_HostReceivesEventWithSameVirtualKeyCode()
+    {
+        var port = GetRandomFreeTcpPort();
+        await using var host = new HostSession("4829", TestScreenInfo, port);
+        await using var viewer = new ViewerSession("127.0.0.1", port, "viewer-8", "PC-NIETO")
+        {
+            RequestPinFromUserAsync = _ => Task.FromResult("4829"),
+        };
+
+        var hostConnectedTcs = NewTcs<bool>();
+        var inputReceivedTcs = NewTcs<InputEvent>();
+        host.Connected += (_, _) => hostConnectedTcs.TrySetResult(true);
+        host.InputEventReceived += (_, inputEvent) => inputReceivedTcs.TrySetResult(inputEvent);
+
+        host.Start();
+        viewer.Start();
+        await WaitWithTimeoutAsync(hostConnectedTcs.Task);
+
+        const int virtualKeyCodeForLetterA = 0x41;
+        var sentEvent = new InputEvent { Kind = InputEventKind.KeyDown, VirtualKeyCode = virtualKeyCodeForLetterA };
+        await viewer.SendInputEventAsync(sentEvent);
+
+        var receivedEvent = await WaitWithTimeoutAsync(inputReceivedTcs.Task);
+
+        Assert.Equal(InputEventKind.KeyDown, receivedEvent.Kind);
+        Assert.Equal(virtualKeyCodeForLetterA, receivedEvent.VirtualKeyCode);
+    }
+
     private static TaskCompletionSource<T> NewTcs<T>() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 

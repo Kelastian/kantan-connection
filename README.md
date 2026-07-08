@@ -9,6 +9,8 @@ GPU-accelerated screen capture, and native mouse/keyboard injection.
 > This project intentionally trades internet-grade security for zero-friction LAN use.
 > See [Design Decisions](#design-decisions) below for why.
 
+> Built with AI assistance; architecture and design decisions are my own.
+
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows)
 ![WPF](https://img.shields.io/badge/UI-WPF-blue)

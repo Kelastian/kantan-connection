@@ -26,17 +26,40 @@
                    Margin="0,0,0,12"/>
 
         <GroupBox Grid.Row="2" Header="Equipos disponibles en tu red">
-            <ListView ItemsSource="{Binding Peers}"
-                      SelectedItem="{Binding SelectedPeer}"
-                      Margin="4">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="Nombre" Width="200" DisplayMemberBinding="{Binding DisplayName}"/>
-                        <GridViewColumn Header="Dirección IP" Width="140" DisplayMemberBinding="{Binding IpAddress}"/>
-                        <GridViewColumn Header="Puerto" Width="80" DisplayMemberBinding="{Binding TcpPort}"/>
-                    </GridView>
-                </ListView.View>
-            </ListView>
+            <Grid Margin="4">
+                <ListView ItemsSource="{Binding Peers}"
+                          SelectedItem="{Binding SelectedPeer}">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Nombre" Width="200" DisplayMemberBinding="{Binding DisplayName}"/>
+                            <GridViewColumn Header="Dirección IP" Width="140" DisplayMemberBinding="{Binding IpAddress}"/>
+                            <GridViewColumn Header="Puerto" Width="80" DisplayMemberBinding="{Binding TcpPort}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- Placeholder visible mientras no se descubrió ningún equipo todavía,
+                     para que la tabla vacía no parezca un error o un bug. -->
+                <TextBlock Text="Todavía no encontramos otros equipos con Kantan Connect abierto en tu red.&#x0a;Abrí la app en otra PC de la misma red para que aparezca acá."
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="Gray"
+                           Margin="24"
+                           IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Peers.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
         </GroupBox>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">

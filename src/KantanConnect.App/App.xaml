@@ -1,9 +1,10 @@
 ﻿<Application x:Class="KantanConnect.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:KantanConnect.App"
-             StartupUri="MainWindow.xaml">
+             xmlns:local="clr-namespace:KantanConnect.App">
+    <!-- Sin StartupUri: App.xaml.cs decide si mostrar MainWindow recién después de
+         verificar elevación y preparar el Firewall (ver OnStartup). -->
     <Application.Resources>
-         
+
     </Application.Resources>
 </Application>

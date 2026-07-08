@@ -3,10 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:services="clr-namespace:KantanConnect.App.Services"
         mc:Ignorable="d"
-        Title="Kantan Connect — Compartiendo pantalla"
-        Height="360" Width="480"
-        WindowStartupLocation="CenterOwner">
+        Title="{Binding [HostWindow_Title], Source={x:Static services:LocalizationService.Instance}}"
+        Height="380" Width="480"
+        WindowStartupLocation="CenterOwner"
+        Icon="kantan.ico">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,33 +18,40 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Compartí este PIN con el otro equipo:"
+                   Text="{Binding [HostWindow_PinInstruction], Source={x:Static services:LocalizationService.Instance}}"
                    FontSize="16"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,16"/>
 
         <Border Grid.Row="1"
-                Background="#F0F0F0"
+                Background="{StaticResource SurfaceMutedBrush}"
                 CornerRadius="8"
                 Padding="24,16"
                 HorizontalAlignment="Center">
             <TextBlock Text="{Binding PinWithSpacing}"
                        FontSize="48" FontWeight="Bold"
-                       FontFamily="Consolas"/>
+                       FontFamily="Consolas"
+                       Foreground="{StaticResource AccentBrushDark}"/>
         </Border>
 
-        <TextBlock Grid.Row="2"
-                   Text="{Binding StatusText}"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Foreground="Gray"
-                   Margin="0,16,0,0"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Margin="0,16,0,0">
+            <Ellipse Style="{StaticResource StatusDotStyle}"
+                      Fill="{Binding ConnectionStatus, Converter={StaticResource ConnectionStatusToBrushConverter}}"
+                      Margin="0,0,8,0"/>
+            <TextBlock Text="{Binding StatusText}"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       MaxWidth="380"/>
+        </StackPanel>
 
         <Button Grid.Row="3"
-                Content="Dejar de compartir"
+                Content="{Binding [HostWindow_StopSharingButton], Source={x:Static services:LocalizationService.Instance}}"
                 Click="OnStopSharingClick"
-                Padding="16,8"
-                HorizontalAlignment="Center"/>
+                Style="{StaticResource BaseButtonStyle}"
+                HorizontalAlignment="Center"
+                Margin="0,16,0,0"/>
     </Grid>
 </Window>

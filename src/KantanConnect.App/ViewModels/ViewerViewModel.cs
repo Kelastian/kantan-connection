@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using KantanConnect.App.Services;
 using KantanConnect.Core.Models;
 using KantanConnect.Core.Session;
 
@@ -16,14 +17,21 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
     private readonly Dispatcher _dispatcher;
     private readonly ViewerSession _viewerSession;
 
-    private string _statusText;
-    private string? _lastRejectionMessage;
+    private string _statusText = string.Empty;
+    private string _connectedToHeading = string.Empty;
+    private ConnectionStatus _connectionStatus = ConnectionStatus.Busy;
+
+    /// <summary>Ver el mismo patrón documentado en <c>HostViewModel</c> (y en <c>Localization.notas.md</c>).</summary>
+    private enum DisplayState { Connecting, PinRejected, Connected, SessionEnded }
+
+    private DisplayState _displayState = DisplayState.Connecting;
+    private int _pinRejectedRemainingAttempts;
+    private SessionEndReason _sessionEndedReason;
 
     public ViewerViewModel(string hostIpAddress, int hostTcpPort, string hostDisplayName)
     {
         _dispatcher = Dispatcher.CurrentDispatcher;
         HostDisplayName = hostDisplayName;
-        _statusText = $"Conectando con \"{hostDisplayName}\"...";
 
         _viewerSession = new ViewerSession(
             hostIpAddress,
@@ -38,6 +46,10 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
         _viewerSession.Connected += OnConnected;
         _viewerSession.FrameReceived += OnFrameReceived;
         _viewerSession.SessionEnded += OnSessionEnded;
+
+        LocalizationService.Instance.PropertyChanged += (_, _) => RefreshLocalizedText();
+        RefreshLocalizedText();
+
         _viewerSession.Start();
     }
 
@@ -47,6 +59,20 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
     {
         get => _statusText;
         private set => SetField(ref _statusText, value);
+    }
+
+    /// <summary>El encabezado "Conectado a {Host}" de la parte superior de la ventana.</summary>
+    public string ConnectedToHeading
+    {
+        get => _connectedToHeading;
+        private set => SetField(ref _connectedToHeading, value);
+    }
+
+    /// <summary>Para el punto de color de la ventana (ver <c>ConnectionStatusToBrushConverter</c>).</summary>
+    public ConnectionStatus ConnectionStatus
+    {
+        get => _connectionStatus;
+        private set => SetField(ref _connectionStatus, value);
     }
 
     private BitmapSource? _currentFrame;
@@ -76,21 +102,37 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
 
     private async Task<string> OnRequestPinFromUserAsync(int pinLength)
     {
-        var message = _lastRejectionMessage;
-        _lastRejectionMessage = null;
+        var loc = LocalizationService.Instance;
+
+        // El primer intento usa el prompt genérico ("Ingresá el PIN de N dígitos...");
+        // a partir del segundo, PinRejected ya dejó guardados los intentos restantes
+        // para armar el mensaje "PIN incorrecto, intentos restantes: N" en su lugar.
+        var message = _displayState == DisplayState.PinRejected
+            ? loc.Format("PinPromptWindow_RejectedPromptFormat", _pinRejectedRemainingAttempts)
+            : loc.Format("PinPromptWindow_PromptFormat", pinLength);
+
         return await PinPromptWindow.PromptAsync(_dispatcher, pinLength, message);
     }
 
     private void OnPinRejected(object? sender, PinRejectedEventArgs e)
     {
-        _lastRejectionMessage = $"PIN incorrecto. Intentos restantes: {e.RemainingAttempts}.\n" +
-                                  "Ingresá el PIN nuevamente:";
-        _dispatcher.Invoke(() => StatusText = "PIN incorrecto, reintentando...");
+        _displayState = DisplayState.PinRejected;
+        _pinRejectedRemainingAttempts = e.RemainingAttempts;
+        _dispatcher.Invoke(() =>
+        {
+            ConnectionStatus = ConnectionStatus.Error;
+            RefreshLocalizedText();
+        });
     }
 
     private void OnConnected(object? sender, EventArgs e)
     {
-        _dispatcher.Invoke(() => StatusText = $"Conectado con \"{HostDisplayName}\".");
+        _displayState = DisplayState.Connected;
+        _dispatcher.Invoke(() =>
+        {
+            ConnectionStatus = ConnectionStatus.Connected;
+            RefreshLocalizedText();
+        });
     }
 
     /// <summary>
@@ -128,17 +170,41 @@ public sealed class ViewerViewModel : ViewModelBase, IAsyncDisposable
 
     private void OnSessionEnded(object? sender, SessionEndedEventArgs e)
     {
+        _displayState = DisplayState.SessionEnded;
+        _sessionEndedReason = e.Reason;
         _dispatcher.Invoke(() =>
         {
-            StatusText = e.Reason switch
-            {
-                SessionEndReason.PinAttemptsExhausted =>
-                    "Se agotaron los intentos de PIN. No fue posible conectar.",
-                SessionEndReason.RemoteClosed => "El otro equipo cerró la conexión.",
-                SessionEndReason.ConnectionLost => "Se perdió la conexión con el otro equipo.",
-                _ => "La sesión terminó.",
-            };
+            ConnectionStatus = e.Reason == SessionEndReason.LocalDisconnect
+                ? ConnectionStatus.Idle
+                : ConnectionStatus.Error;
+            RefreshLocalizedText();
         });
+    }
+
+    /// <summary>
+    /// Reconstruye <see cref="StatusText"/> y <see cref="ConnectedToHeading"/> a partir de
+    /// <see cref="_displayState"/> en el idioma vigente. Se llama tanto en cada transición
+    /// de estado como cuando <see cref="LocalizationService"/> notifica un cambio de idioma.
+    /// </summary>
+    private void RefreshLocalizedText()
+    {
+        var loc = LocalizationService.Instance;
+
+        StatusText = _displayState switch
+        {
+            DisplayState.PinRejected => loc["ViewerViewModel_PinRejectedStatus"],
+            DisplayState.Connected => loc.Format("ViewerViewModel_ConnectedStatusFormat", HostDisplayName),
+            DisplayState.SessionEnded => _sessionEndedReason switch
+            {
+                SessionEndReason.PinAttemptsExhausted => loc["Session_PinAttemptsExhausted_Viewer"],
+                SessionEndReason.RemoteClosed => loc["Session_RemoteClosed"],
+                SessionEndReason.ConnectionLost => loc["Session_ConnectionLost"],
+                _ => loc["Session_Ended"],
+            },
+            _ => loc.Format("ViewerViewModel_ConnectingStatusFormat", HostDisplayName),
+        };
+
+        ConnectedToHeading = loc.Format("ViewerWindow_ConnectedToFormat", HostDisplayName);
     }
 
     public async ValueTask DisposeAsync() => await _viewerSession.DisposeAsync();

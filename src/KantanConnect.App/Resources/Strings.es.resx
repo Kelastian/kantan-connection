@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- App-wide -->
+  <data name="AppTitle" xml:space="preserve"><value>Kantan Connect</value></data>
+  <data name="LanguageToggleButton" xml:space="preserve"><value>English</value></data>
+  <data name="ErrorDialogTitle" xml:space="preserve"><value>Kantan Connect — Error inesperado</value></data>
+  <data name="ErrorDialogMessageFormat" xml:space="preserve"><value>Ocurrió un error inesperado y la aplicación no puede continuar:
+
+{0}</value></data>
+  <data name="FirewallRulesFailedTitle" xml:space="preserve"><value>Kantan Connect</value></data>
+  <data name="FirewallRulesFailedMessage" xml:space="preserve"><value>No se pudieron crear automáticamente las reglas del Firewall de Windows. Es posible que descubrir otros equipos o conectarse a ellos falle. Puede seguir usando la aplicación; si surge algún problema, revise la configuración del Firewall de Windows manualmente.</value></data>
+  <data name="AdminRequiredTitle" xml:space="preserve"><value>Kantan Connect — Se requieren permisos de administrador</value></data>
+  <data name="AdminRequiredMessage" xml:space="preserve"><value>Kantan Connect necesita ejecutarse como administrador para controlar el mouse/teclado remoto y configurar el Firewall automáticamente. Vuelva a abrir la aplicación y acepte el permiso de administrador cuando Windows lo solicite.</value></data>
+
+  <!-- MainWindow -->
+  <data name="MainWindow_Title" xml:space="preserve"><value>Kantan Connect</value></data>
+  <data name="MainWindow_Heading" xml:space="preserve"><value>Kantan Connect</value></data>
+  <data name="MainWindow_PeersGroupHeader" xml:space="preserve"><value>Equipos disponibles en la red</value></data>
+  <data name="MainWindow_ColumnName" xml:space="preserve"><value>Nombre</value></data>
+  <data name="MainWindow_ColumnIpAddress" xml:space="preserve"><value>Dirección IP</value></data>
+  <data name="MainWindow_ColumnPort" xml:space="preserve"><value>Puerto</value></data>
+  <data name="MainWindow_EmptyPeersPlaceholder" xml:space="preserve"><value>Todavía no se encontró ningún otro equipo con Kantan Connect abierto en la red.
+Abra la aplicación en otra PC de la misma red para que aparezca aquí.</value></data>
+  <data name="MainWindow_ConnectButton" xml:space="preserve"><value>Conectar</value></data>
+  <data name="MainWindow_ShareButton" xml:space="preserve"><value>Compartir pantalla</value></data>
+  <data name="MainWindow_StopSharingButton" xml:space="preserve"><value>Dejar de compartir</value></data>
+  <data name="MainViewModel_SearchingStatus" xml:space="preserve"><value>Buscando otros equipos en la red...</value></data>
+  <data name="MainViewModel_SharingAsStatusFormat" xml:space="preserve"><value>Compartiendo como "{0}".</value></data>
+
+  <!-- HostWindow -->
+  <data name="HostWindow_Title" xml:space="preserve"><value>Kantan Connect — Compartiendo pantalla</value></data>
+  <data name="HostWindow_PinInstruction" xml:space="preserve"><value>Comparta este PIN con el otro equipo:</value></data>
+  <data name="HostWindow_StopSharingButton" xml:space="preserve"><value>Dejar de compartir</value></data>
+  <data name="HostViewModel_WaitingStatus" xml:space="preserve"><value>Esperando que alguien se conecte...</value></data>
+  <data name="HostViewModel_GdiFallbackStatusFormat" xml:space="preserve"><value>Aviso: la captura por GPU no está disponible ({0}), usando modo compatible.</value></data>
+  <data name="HostViewModel_ViewerConnectingStatusFormat" xml:space="preserve"><value>"{0}" se está conectando. Verificando PIN...</value></data>
+  <data name="HostViewModel_PinRejectedStatusFormat" xml:space="preserve"><value>PIN incorrecto. Intentos restantes: {0}.</value></data>
+  <data name="HostViewModel_ConnectedStatusFormat" xml:space="preserve"><value>Conectado con "{0}". Transmitiendo pantalla...</value></data>
+
+  <!-- ViewerWindow -->
+  <data name="ViewerWindow_TitleConnecting" xml:space="preserve"><value>Kantan Connect — Conectando</value></data>
+  <data name="ViewerWindow_ConnectedToFormat" xml:space="preserve"><value>Conectado a {0}</value></data>
+  <data name="ViewerWindow_CloseButton" xml:space="preserve"><value>Cerrar</value></data>
+  <data name="ViewerViewModel_ConnectingStatusFormat" xml:space="preserve"><value>Conectando con "{0}"...</value></data>
+  <data name="ViewerViewModel_PinRejectedStatus" xml:space="preserve"><value>PIN incorrecto, reintentando...</value></data>
+  <data name="ViewerViewModel_ConnectedStatusFormat" xml:space="preserve"><value>Conectado con "{0}".</value></data>
+
+  <!-- PinPromptWindow -->
+  <data name="PinPromptWindow_Title" xml:space="preserve"><value>Ingresar el PIN</value></data>
+  <data name="PinPromptWindow_PromptFormat" xml:space="preserve"><value>Ingrese el PIN de {0} dígitos mostrado en el otro equipo:</value></data>
+  <data name="PinPromptWindow_RejectedPromptFormat" xml:space="preserve"><value>PIN incorrecto. Intentos restantes: {0}.
+Ingrese el PIN nuevamente:</value></data>
+  <data name="PinPromptWindow_CancelButton" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="PinPromptWindow_ConnectButton" xml:space="preserve"><value>Conectar</value></data>
+
+  <!-- Session end reasons, shared by HostViewModel and ViewerViewModel -->
+  <data name="Session_PinAttemptsExhausted_Host" xml:space="preserve"><value>Se agotaron los intentos de PIN. La conexión fue rechazada.</value></data>
+  <data name="Session_PinAttemptsExhausted_Viewer" xml:space="preserve"><value>Se agotaron los intentos de PIN. No fue posible conectar.</value></data>
+  <data name="Session_RemoteClosed" xml:space="preserve"><value>El otro equipo cerró la conexión.</value></data>
+  <data name="Session_ConnectionLost" xml:space="preserve"><value>Se perdió la conexión con el otro equipo.</value></data>
+  <data name="Session_Ended" xml:space="preserve"><value>La sesión finalizó.</value></data>
+</root>

@@ -3,12 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:services="clr-namespace:KantanConnect.App.Services"
         mc:Ignorable="d"
-        Title="Ingresá el PIN"
+        Title="{Binding [PinPromptWindow_Title], Source={x:Static services:LocalizationService.Instance}}"
         Height="220" Width="360"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Icon="kantan.ico">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -19,7 +21,6 @@
 
         <TextBlock Grid.Row="0"
                    x:Name="PromptText"
-                   Text="Ingresá el PIN de 6 dígitos mostrado en el otro equipo:"
                    TextWrapping="Wrap"
                    Margin="0,0,0,16"/>
 
@@ -28,11 +29,15 @@
                  FontSize="24" FontFamily="Consolas"
                  HorizontalContentAlignment="Center"
                  MaxLength="6"
-                 Padding="8"/>
+                 Padding="8"
+                 BorderBrush="{StaticResource AccentBrush}"
+                 BorderThickness="2"/>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="Cancelar" Click="OnCancelClick" Padding="16,8" Margin="0,0,8,0"/>
-            <Button Content="Conectar" Click="OnConfirmClick" Padding="16,8" IsDefault="True"/>
+            <Button Content="{Binding [PinPromptWindow_CancelButton], Source={x:Static services:LocalizationService.Instance}}"
+                    Click="OnCancelClick" Style="{StaticResource BaseButtonStyle}" Margin="0,0,8,0"/>
+            <Button Content="{Binding [PinPromptWindow_ConnectButton], Source={x:Static services:LocalizationService.Instance}}"
+                    Click="OnConfirmClick" Style="{StaticResource PrimaryButtonStyle}" IsDefault="True"/>
         </StackPanel>
     </Grid>
 </Window>

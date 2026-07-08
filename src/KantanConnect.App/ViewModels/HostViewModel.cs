@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using KantanConnect.App.Services;
 using KantanConnect.Core.Abstractions;
 using KantanConnect.Core.Discovery;
 using KantanConnect.Core.Models;
@@ -38,8 +39,22 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
     private CancellationTokenSource? _captureLoopCts;
     private Task? _captureLoopTask;
 
-    private string _statusText = "Esperando que alguien se conecte...";
+    private string _statusText = string.Empty;
+    private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
     private string? _viewerDisplayName;
+
+    /// <summary>
+    /// El estado que determina qué texto mostrar en <see cref="RefreshStatusText"/>,
+    /// junto con los parámetros que necesita cada mensaje (ver <c>Localization.notas.md</c>
+    /// para el porqué de este patrón: permite recalcular el texto al cambiar de idioma
+    /// sin repetir la lógica de "qué mensaje corresponde" en dos lugares distintos).
+    /// </summary>
+    private enum DisplayState { Waiting, GdiFallback, ViewerConnecting, PinRejected, Connected, SessionEnded }
+
+    private DisplayState _displayState = DisplayState.Waiting;
+    private int _pinRejectedRemainingAttempts;
+    private SessionEndReason _sessionEndedReason;
+    private string? _gdiFallbackReason;
 
     public HostViewModel(string localPeerId, string localDisplayName)
     {
@@ -60,7 +75,11 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
         _screenCapturer = ScreenCapturerFactory.Create(
             new JpegFrameEncoder(),
             onFallbackToGdi: ex => _dispatcher.Invoke(() =>
-                StatusText = $"Aviso: captura por GPU no disponible ({ex.GetType().Name}), usando modo compatible."));
+            {
+                _displayState = DisplayState.GdiFallback;
+                _gdiFallbackReason = ex.GetType().Name;
+                RefreshStatusText();
+            }));
 
         _hostSession = new HostSession(Pin, _screenCapturer.GetScreenInfo(), DiscoveryDefaults.TcpSessionPort);
         _hostSession.ViewerConnecting += OnViewerConnecting;
@@ -68,6 +87,9 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
         _hostSession.Connected += OnConnected;
         _hostSession.InputEventReceived += OnInputEventReceived;
         _hostSession.SessionEnded += OnSessionEnded;
+
+        LocalizationService.Instance.PropertyChanged += (_, _) => RefreshStatusText();
+        RefreshStatusText();
 
         _broadcaster.Start();
         _hostSession.Start();
@@ -96,12 +118,21 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
         private set => SetField(ref _viewerDisplayName, value);
     }
 
+    /// <summary>Para el punto de color de la ventana (ver <c>ConnectionStatusToBrushConverter</c>).</summary>
+    public ConnectionStatus ConnectionStatus
+    {
+        get => _connectionStatus;
+        private set => SetField(ref _connectionStatus, value);
+    }
+
     private void OnViewerConnecting(object? sender, HelloMessage hello)
     {
         _dispatcher.Invoke(() =>
         {
             ViewerDisplayName = hello.ViewerDisplayName;
-            StatusText = $"\"{hello.ViewerDisplayName}\" se está conectando. Verificando PIN...";
+            _displayState = DisplayState.ViewerConnecting;
+            ConnectionStatus = ConnectionStatus.Busy;
+            RefreshStatusText();
         });
     }
 
@@ -109,7 +140,10 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
     {
         _dispatcher.Invoke(() =>
         {
-            StatusText = $"PIN incorrecto. Intentos restantes: {e.RemainingAttempts}.";
+            _displayState = DisplayState.PinRejected;
+            _pinRejectedRemainingAttempts = e.RemainingAttempts;
+            ConnectionStatus = ConnectionStatus.Error;
+            RefreshStatusText();
         });
     }
 
@@ -127,7 +161,9 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
     {
         _dispatcher.Invoke(() =>
         {
-            StatusText = $"Conectado con \"{ViewerDisplayName}\". Transmitiendo pantalla...";
+            _displayState = DisplayState.Connected;
+            ConnectionStatus = ConnectionStatus.Connected;
+            RefreshStatusText();
         });
 
         _captureLoopCts = new CancellationTokenSource();
@@ -140,15 +176,39 @@ public sealed class HostViewModel : ViewModelBase, IAsyncDisposable
 
         _dispatcher.Invoke(() =>
         {
-            StatusText = e.Reason switch
-            {
-                SessionEndReason.PinAttemptsExhausted =>
-                    "Se agotaron los intentos de PIN. La conexión fue rechazada.",
-                SessionEndReason.RemoteClosed => "El otro equipo cerró la conexión.",
-                SessionEndReason.ConnectionLost => "Se perdió la conexión con el otro equipo.",
-                _ => "La sesión terminó.",
-            };
+            _displayState = DisplayState.SessionEnded;
+            _sessionEndedReason = e.Reason;
+            ConnectionStatus = e.Reason == SessionEndReason.LocalDisconnect
+                ? ConnectionStatus.Idle
+                : ConnectionStatus.Error;
+            RefreshStatusText();
         });
+    }
+
+    /// <summary>
+    /// Reconstruye <see cref="StatusText"/> a partir de <see cref="_displayState"/> (y los
+    /// parámetros guardados junto a él) en el idioma vigente. Se llama tanto en cada
+    /// transición de estado como cuando <see cref="LocalizationService"/> notifica un
+    /// cambio de idioma, para que el texto nunca quede "congelado" en el idioma anterior.
+    /// </summary>
+    private void RefreshStatusText()
+    {
+        var loc = LocalizationService.Instance;
+        StatusText = _displayState switch
+        {
+            DisplayState.GdiFallback => loc.Format("HostViewModel_GdiFallbackStatusFormat", _gdiFallbackReason!),
+            DisplayState.ViewerConnecting => loc.Format("HostViewModel_ViewerConnectingStatusFormat", ViewerDisplayName!),
+            DisplayState.PinRejected => loc.Format("HostViewModel_PinRejectedStatusFormat", _pinRejectedRemainingAttempts),
+            DisplayState.Connected => loc.Format("HostViewModel_ConnectedStatusFormat", ViewerDisplayName!),
+            DisplayState.SessionEnded => _sessionEndedReason switch
+            {
+                SessionEndReason.PinAttemptsExhausted => loc["Session_PinAttemptsExhausted_Host"],
+                SessionEndReason.RemoteClosed => loc["Session_RemoteClosed"],
+                SessionEndReason.ConnectionLost => loc["Session_ConnectionLost"],
+                _ => loc["Session_Ended"],
+            },
+            _ => loc["HostViewModel_WaitingStatus"],
+        };
     }
 
     /// <summary>

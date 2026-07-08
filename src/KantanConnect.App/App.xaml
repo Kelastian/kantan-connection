@@ -1,10 +1,93 @@
 ﻿<Application x:Class="KantanConnect.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:KantanConnect.App">
+             xmlns:local="clr-namespace:KantanConnect.App"
+             xmlns:converters="clr-namespace:KantanConnect.App.Converters">
     <!-- Sin StartupUri: App.xaml.cs decide si mostrar MainWindow recién después de
          verificar elevación y preparar el Firewall (ver OnStartup). -->
     <Application.Resources>
+        <ResourceDictionary>
+            <converters:ConnectionStatusToBrushConverter x:Key="ConnectionStatusToBrushConverter"/>
 
+            <!-- Paleta compartida por las 5 ventanas (Fase 8). Un solo lugar para
+                 estos colores evita que cada ventana "invente" su propio verde o gris,
+                 y hace trivial retocar el tema entero más adelante. -->
+            <Color x:Key="AccentColor">#0D9488</Color>
+            <Color x:Key="AccentColorDark">#0F766E</Color>
+            <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+            <SolidColorBrush x:Key="AccentBrushDark" Color="{StaticResource AccentColorDark}"/>
+
+            <!-- Colores de estado: mismo criterio semántico en MainWindow, HostWindow
+                 y ViewerWindow (ver StatusDotStyle) para que "verde siempre signifique
+                 conectado" en toda la app, sin importar la ventana. -->
+            <SolidColorBrush x:Key="StatusIdleBrush" Color="#9CA3AF"/>
+            <SolidColorBrush x:Key="StatusBusyBrush" Color="#F59E0B"/>
+            <SolidColorBrush x:Key="StatusConnectedBrush" Color="#16A34A"/>
+            <SolidColorBrush x:Key="StatusErrorBrush" Color="#DC2626"/>
+
+            <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F3F4F6"/>
+            <SolidColorBrush x:Key="TextMutedBrush" Color="#6B7280"/>
+
+            <FontFamily x:Key="AppFontFamily">Segoe UI</FontFamily>
+
+            <!-- Estilo base: todo botón de la app parte de acá, salvo que use
+                 explícitamente PrimaryButtonStyle. -->
+            <Style x:Key="BaseButtonStyle" TargetType="Button">
+                <Setter Property="Padding" Value="16,8"/>
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Background" Value="#E5E7EB"/>
+                <Setter Property="Foreground" Value="#111827"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="ButtonBorder"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.85"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.7"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Botón de acción principal de cada ventana (Compartir, Conectar,
+                 Confirmar PIN): mismo template que BaseButtonStyle, pero con el
+                 color de acento y texto blanco, para que destaque como "la acción
+                 que probablemente querés hacer" en cada pantalla. -->
+            <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </Style>
+
+            <!-- Punto de color chico para indicar el estado de conexión de un vistazo,
+                 sin depender solo del texto (ver StatusText en cada ventana). -->
+            <Style x:Key="StatusDotStyle" TargetType="Ellipse">
+                <Setter Property="Width" Value="10"/>
+                <Setter Property="Height" Value="10"/>
+                <Setter Property="Fill" Value="{StaticResource StatusIdleBrush}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style TargetType="Window">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="FontSize" Value="13"/>
+            </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

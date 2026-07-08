@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using KantanConnect.App.Services;
 
 namespace KantanConnect.App;
 
@@ -12,7 +13,7 @@ public partial class PinPromptWindow : Window
         InitializeComponent();
         PinTextBox.MaxLength = pinLength;
         PromptText.Text = previousAttemptMessage
-            ?? $"Ingresá el PIN de {pinLength} dígitos mostrado en el otro equipo:";
+            ?? LocalizationService.Instance.Format("PinPromptWindow_PromptFormat", pinLength);
     }
 
     private void OnConfirmClick(object sender, RoutedEventArgs e)

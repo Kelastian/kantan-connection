@@ -5,6 +5,13 @@
     <ProjectReference Include="..\KantanConnect.Windows\KantanConnect.Windows.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ApplicationIcon (abajo) solo empaqueta el ícono nativo del .exe; para que
+         Icon="kantan.ico" funcione en el XAML de cada ventana (barra de título,
+         Alt+Tab), el archivo también debe declararse como recurso WPF empaquetado. -->
+    <Resource Include="kantan.ico" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -14,6 +21,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>KantanConnect</AssemblyName>
     <RootNamespace>KantanConnect.App</RootNamespace>
+    <ApplicationIcon>kantan.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

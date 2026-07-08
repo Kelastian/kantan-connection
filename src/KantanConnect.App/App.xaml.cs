@@ -1,4 +1,5 @@
 using System.Windows;
+using KantanConnect.App.Services;
 using KantanConnect.Windows.Platform;
 
 namespace KantanConnect.App;
@@ -15,6 +16,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Sin esto, una excepción no capturada durante el arranque (por ejemplo, un
+        // recurso XAML que no se encuentra en tiempo de ejecución) hace que el proceso
+        // termine en silencio, sin ninguna ventana ni mensaje — exactamente el tipo de
+        // fallo "no pasa nada, no abre nada" que es imposible de diagnosticar a ciegas.
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+
         if (!AdminHelper.IsRunningAsAdministrator())
         {
             RelaunchElevatedAndShutdown();
@@ -29,11 +36,10 @@ public partial class App : Application
         var firewallResult = FirewallHelper.EnsureRulesExist();
         if (!firewallResult.AllRulesReady)
         {
+            var loc = LocalizationService.Instance;
             MessageBox.Show(
-                "No se pudieron crear automáticamente las reglas de Firewall de Windows. " +
-                "Es posible que el descubrimiento de otros equipos o las conexiones fallen. " +
-                "Podés seguir usando la app; si hay problemas, revisá el Firewall de Windows manualmente.",
-                "Kantan Connect",
+                loc["FirewallRulesFailedMessage"],
+                loc["FirewallRulesFailedTitle"],
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -47,15 +53,28 @@ public partial class App : Application
 
         if (!relaunched)
         {
+            var loc = LocalizationService.Instance;
             MessageBox.Show(
-                "Kantan Connect necesita ejecutarse como Administrador para poder " +
-                "controlar el mouse/teclado remoto y configurar el Firewall automáticamente. " +
-                "Volvé a abrir la aplicación y aceptá el permiso de administrador cuando Windows lo pida.",
-                "Kantan Connect — Se requieren permisos de Administrador",
+                loc["AdminRequiredMessage"],
+                loc["AdminRequiredTitle"],
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
 
+        Shutdown();
+    }
+
+    private void OnDispatcherUnhandledException(
+        object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+    {
+        var loc = LocalizationService.Instance;
+        MessageBox.Show(
+            loc.Format("ErrorDialogMessageFormat", e.Exception.Message),
+            loc["ErrorDialogTitle"],
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+
+        e.Handled = true;
         Shutdown();
     }
 }

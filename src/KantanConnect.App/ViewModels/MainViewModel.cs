@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
+using KantanConnect.App.Services;
 using KantanConnect.Core.Discovery;
 
 namespace KantanConnect.App.ViewModels;
@@ -18,7 +19,8 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
     private readonly DiscoveryListener _discoveryListener;
 
     private bool _isSharing;
-    private string _statusText = "Buscando otros equipos en la red...";
+    private string _statusText = string.Empty;
+    private ConnectionStatus _connectionStatus = ConnectionStatus.Idle;
     private HostWindow? _hostWindow;
 
     public MainViewModel()
@@ -31,6 +33,12 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
 
         ShareScreenCommand = new RelayCommand(ToggleSharing);
         ConnectCommand = new RelayCommand(ConnectToSelectedPeer, () => SelectedPeer is not null);
+
+        // Recalcula StatusText con el idioma nuevo cuando el usuario lo cambia (ver
+        // LocalizationService.notas.md): sin esto, el texto quedaría "congelado" en el
+        // idioma que estaba activo cuando se generó por última vez.
+        LocalizationService.Instance.PropertyChanged += (_, _) => RefreshStatusText();
+        RefreshStatusText();
     }
 
     public ObservableCollection<PeerListItemViewModel> Peers { get; } = [];
@@ -52,6 +60,13 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
     {
         get => _statusText;
         private set => SetField(ref _statusText, value);
+    }
+
+    /// <summary>Para el punto de color de la ventana (ver <c>ConnectionStatusToBrushConverter</c>).</summary>
+    public ConnectionStatus ConnectionStatus
+    {
+        get => _connectionStatus;
+        private set => SetField(ref _connectionStatus, value);
     }
 
     public RelayCommand ShareScreenCommand { get; }
@@ -78,7 +93,8 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
         };
         _hostWindow.Closed += OnHostWindowClosed;
         IsSharing = true;
-        StatusText = $"Compartiendo como \"{_localDisplayName}\".";
+        ConnectionStatus = ConnectionStatus.Busy;
+        RefreshStatusText();
         _hostWindow.Show();
     }
 
@@ -91,7 +107,21 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
 
         _hostWindow = null;
         IsSharing = false;
-        StatusText = "Buscando otros equipos en la red...";
+        ConnectionStatus = ConnectionStatus.Idle;
+        RefreshStatusText();
+    }
+
+    /// <summary>
+    /// Reconstruye <see cref="StatusText"/> a partir del estado actual (<see cref="IsSharing"/>)
+    /// en el idioma vigente. Centralizar esto acá (en vez de asignar el texto directo en
+    /// cada transición, como en fases anteriores) es lo que permite refrescar el texto
+    /// cuando el usuario cambia de idioma sin tener que repetir esa lógica en dos lugares.
+    /// </summary>
+    private void RefreshStatusText()
+    {
+        StatusText = IsSharing
+            ? LocalizationService.Instance.Format("MainViewModel_SharingAsStatusFormat", _localDisplayName)
+            : LocalizationService.Instance["MainViewModel_SearchingStatus"];
     }
 
     private void ConnectToSelectedPeer()

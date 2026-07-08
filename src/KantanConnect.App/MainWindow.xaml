@@ -4,10 +4,13 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KantanConnect.App"
+        xmlns:services="clr-namespace:KantanConnect.App.Services"
         mc:Ignorable="d"
-        Title="Kantan Connect" Height="480" Width="640"
-        MinHeight="360" MinWidth="480">
-    <Grid Margin="16">
+        Title="{Binding [MainWindow_Title], Source={x:Static services:LocalizationService.Instance}}"
+        Height="480" Width="640"
+        MinHeight="360" MinWidth="480"
+        Icon="kantan.ico">
+    <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -15,37 +18,70 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
-                   Text="Kantan Connect"
-                   FontSize="24" FontWeight="Bold"
-                   Margin="0,0,0,4"/>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="1"
-                   Text="{Binding StatusText}"
-                   Foreground="Gray"
-                   Margin="0,0,0,12"/>
+            <TextBlock Grid.Column="0"
+                       Text="{Binding [MainWindow_Heading], Source={x:Static services:LocalizationService.Instance}}"
+                       FontSize="24" FontWeight="Bold"
+                       Foreground="{StaticResource AccentBrushDark}"
+                       Margin="0,0,0,4"/>
 
-        <GroupBox Grid.Row="2" Header="Equipos disponibles en tu red">
+            <!-- Botón de idioma: cambia LocalizationService.CurrentCulture, lo que
+                 refresca en caliente todos los bindings [Clave] de las 5 ventanas
+                 (ver LocalizationService.notas.md para el detalle del mecanismo). -->
+            <Button Grid.Column="1"
+                    Content="{Binding [LanguageToggleButton], Source={x:Static services:LocalizationService.Instance}}"
+                    Click="OnLanguageToggleClick"
+                    Style="{StaticResource BaseButtonStyle}"
+                    VerticalAlignment="Top"/>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+            <Ellipse Style="{StaticResource StatusDotStyle}"
+                      Fill="{Binding ConnectionStatus, Converter={StaticResource ConnectionStatusToBrushConverter}}"
+                      Margin="0,0,8,0"/>
+            <TextBlock Text="{Binding StatusText}"
+                       Foreground="{StaticResource TextMutedBrush}"/>
+        </StackPanel>
+
+        <GroupBox Grid.Row="2"
+                  Header="{Binding [MainWindow_PeersGroupHeader], Source={x:Static services:LocalizationService.Instance}}">
             <Grid Margin="4">
                 <ListView ItemsSource="{Binding Peers}"
                           SelectedItem="{Binding SelectedPeer}">
                     <ListView.View>
                         <GridView>
-                            <GridViewColumn Header="Nombre" Width="200" DisplayMemberBinding="{Binding DisplayName}"/>
-                            <GridViewColumn Header="Dirección IP" Width="140" DisplayMemberBinding="{Binding IpAddress}"/>
-                            <GridViewColumn Header="Puerto" Width="80" DisplayMemberBinding="{Binding TcpPort}"/>
+                            <GridViewColumn Width="200" DisplayMemberBinding="{Binding DisplayName}">
+                                <GridViewColumn.Header>
+                                    <GridViewColumnHeader Content="{Binding [MainWindow_ColumnName], Source={x:Static services:LocalizationService.Instance}}"/>
+                                </GridViewColumn.Header>
+                            </GridViewColumn>
+                            <GridViewColumn Width="140" DisplayMemberBinding="{Binding IpAddress}">
+                                <GridViewColumn.Header>
+                                    <GridViewColumnHeader Content="{Binding [MainWindow_ColumnIpAddress], Source={x:Static services:LocalizationService.Instance}}"/>
+                                </GridViewColumn.Header>
+                            </GridViewColumn>
+                            <GridViewColumn Width="80" DisplayMemberBinding="{Binding TcpPort}">
+                                <GridViewColumn.Header>
+                                    <GridViewColumnHeader Content="{Binding [MainWindow_ColumnPort], Source={x:Static services:LocalizationService.Instance}}"/>
+                                </GridViewColumn.Header>
+                            </GridViewColumn>
                         </GridView>
                     </ListView.View>
                 </ListView>
 
                 <!-- Placeholder visible mientras no se descubrió ningún equipo todavía,
                      para que la tabla vacía no parezca un error o un bug. -->
-                <TextBlock Text="Todavía no encontramos otros equipos con Kantan Connect abierto en tu red.&#x0a;Abrí la app en otra PC de la misma red para que aparezca acá."
+                <TextBlock Text="{Binding [MainWindow_EmptyPeersPlaceholder], Source={x:Static services:LocalizationService.Instance}}"
                            TextWrapping="Wrap"
                            TextAlignment="Center"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           Foreground="Gray"
+                           Foreground="{StaticResource TextMutedBrush}"
                            Margin="24"
                            IsHitTestVisible="False">
                     <TextBlock.Style>
@@ -62,22 +98,28 @@
             </Grid>
         </GroupBox>
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Conectar"
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="{Binding [MainWindow_ConnectButton], Source={x:Static services:LocalizationService.Instance}}"
                     Command="{Binding ConnectCommand}"
-                    Padding="16,8" Margin="0,0,8,0"/>
+                    Style="{StaticResource BaseButtonStyle}"
+                    Margin="0,0,8,0"/>
             <Button Command="{Binding ShareScreenCommand}"
-                    Padding="16,8" MinWidth="180">
-                <Button.Style>
-                    <Style TargetType="Button">
-                        <Setter Property="Content" Value="Compartir mi pantalla"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsSharing}" Value="True">
-                                <Setter Property="Content" Value="Dejar de compartir"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    MinWidth="180">
+                <Button.Content>
+                    <TextBlock>
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="{Binding [MainWindow_ShareButton], Source={x:Static services:LocalizationService.Instance}}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSharing}" Value="True">
+                                        <Setter Property="Text" Value="{Binding [MainWindow_StopSharingButton], Source={x:Static services:LocalizationService.Instance}}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Button.Content>
             </Button>
         </StackPanel>
     </Grid>

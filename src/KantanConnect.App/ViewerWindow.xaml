@@ -3,11 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:services="clr-namespace:KantanConnect.App.Services"
         mc:Ignorable="d"
-        Title="Kantan Connect — Conectando"
+        Title="{Binding [ViewerWindow_TitleConnecting], Source={x:Static services:LocalizationService.Instance}}"
         Height="720" Width="1100"
         MinHeight="360" MinWidth="480"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        Icon="kantan.ico">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,8 +18,9 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="{Binding HostDisplayName, StringFormat='Conectado a \{0\}'}"
+                   Text="{Binding ConnectedToHeading}"
                    FontSize="20" FontWeight="Bold"
+                   Foreground="{StaticResource AccentBrushDark}"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,8"/>
 
@@ -59,13 +62,16 @@
         </Grid>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+            <Ellipse Style="{StaticResource StatusDotStyle}"
+                      Fill="{Binding ConnectionStatus, Converter={StaticResource ConnectionStatusToBrushConverter}}"
+                      Margin="0,0,8,0"/>
             <TextBlock Text="{Binding StatusText}"
-                       Foreground="Gray"
+                       Foreground="{StaticResource TextMutedBrush}"
                        VerticalAlignment="Center"
                        Margin="0,0,16,0"/>
-            <Button Content="Cerrar"
+            <Button Content="{Binding [ViewerWindow_CloseButton], Source={x:Static services:LocalizationService.Instance}}"
                     Click="OnCloseClick"
-                    Padding="16,8"/>
+                    Style="{StaticResource BaseButtonStyle}"/>
         </StackPanel>
     </Grid>
 </Window>

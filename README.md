@@ -2,12 +2,17 @@
 
 **Zero-configuration LAN screen sharing and remote control for Windows**, built in C#/.NET 10.
 
+Think "TeamViewer, but homemade and LAN-only" — the kind of thing you'd set up so you can
+help a family member on the same home network without walking them through an IP address
+over the phone.
+
 Open the app on two PCs on the same home network and, without typing a single IP address,
 one can see and control the other's screen — automatic peer discovery, PIN-based pairing,
 GPU-accelerated screen capture, and native mouse/keyboard injection.
 
 > This project intentionally trades internet-grade security for zero-friction LAN use.
-> See [Design Decisions](#design-decisions) below for why.
+> See [Design Decisions](#design-decisions) below for why. **Not intended for untrusted
+> networks or production use.**
 
 > Built with AI assistance; architecture and design decisions are my own.
 
@@ -30,7 +35,9 @@ GPU-accelerated screen capture, and native mouse/keyboard injection.
 
 ## Screenshots
 
-*(Add screenshots of the main window, the PIN screen, and a live remote session here.)*
+| Main window | PIN pairing | Peer discovered |
+|---|---|---|
+| ![Main window, searching for peers](docs/1.png) | ![Sharing screen, PIN shown](docs/2.png) | ![Main window with a discovered peer](docs/3.png) |
 
 ## Getting Started
 
@@ -42,8 +49,8 @@ GPU-accelerated screen capture, and native mouse/keyboard injection.
 ### Build & run
 
 ```powershell
-git clone https://github.com/Kelastian/kantan-connection.git
-cd kantan-connection
+git clone https://github.com/Kelastian/kantan-connect.git
+cd kantan-connect
 dotnet build
 dotnet run --project src/KantanConnect.App
 ```
@@ -213,13 +220,9 @@ about a Vortice method signature turned out to be wrong on the first attempt —
 mistake to make and an expensive one to ship silently, so verification became the standard
 for every native API surface in this project rather than a one-off fix.
 
-**Every commit in this repo's history reflects an AI-assisted, human-directed workflow.**
-This project was built collaboratively with Claude (Anthropic) as a hands-on pair-programming
-session — each phase was planned, implemented, manually verified against the real running
-app (often across two physical PCs), and only committed once it actually worked end-to-end.
-Bugs like the three above were found *during* that manual verification, not assumed away —
-the fixes and their root causes are documented here and in the commit messages on purpose,
-because the reasoning behind a decision is worth more than the decision itself.
+Bugs like the three above were found *during* manual, end-to-end verification against the
+real running app — often across two physical PCs — not assumed away, which is why the fixes
+and their root causes are documented here rather than just fixed and forgotten.
 
 ---
 
@@ -235,6 +238,7 @@ IPアドレスを入力することなく画面を共有し、遠隔操作でき
 
 このプロジェクトは、インターネット経由の高度なセキュリティよりも、
 信頼できる家庭内ネットワークでの「設定不要」な使いやすさを優先しています。
+**信頼できないネットワークや本番環境での使用は想定していません。**
 
 ---
 

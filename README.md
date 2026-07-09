@@ -226,6 +226,22 @@ and their root causes are documented here rather than just fixed and forgotten.
 
 ---
 
+## Why I built this
+
+I wanted to understand how remote desktop software works under the hood instead of treating it as a black box.
+
+The goal: learn by building:
+
+- Screen capture with Windows APIs
+- Mouse and keyboard input injection
+- TCP communication
+- LAN device discovery
+- Clean project architecture
+
+The project is intentionally structured so that platform-independent logic lives in a reusable Core library, while Windows-specific code is isolated. This makes future ports (e.g. Android) much easier.
+
+---
+
 ## 概要（日本語）
 
 **Kantan Connect**（簡単コネクト）は、同じ家庭内LANに接続された2台のWindows PC間で、
